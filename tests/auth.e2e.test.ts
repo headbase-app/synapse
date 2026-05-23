@@ -7,19 +7,19 @@ import {
 
 describe('Authentication checks', () => {
 	test('Given valid admin token, socket should be upgraded successfully', async () => {
-		const ADMIN_SECRET = "testing"
-		const server = createServer({adminSecret: ADMIN_SECRET});
+		const ACCESS_SECRET = "testing"
+		const server = createServer({adminSecret: ACCESS_SECRET});
 		server.listen(42100)
 
-		const socket1 = new WebSocket(`ws://localhost:42100/v1?peerId=peer-1&relayId=relay-1`, [ADMIN_SECRET])
+		const socket1 = new WebSocket(`ws://localhost:42100/v1?peerId=peer-1&relayId=relay-1`, [ACCESS_SECRET])
 		await awaitSocketsOpen([socket1]);
 
 		server.close();
 	});
 
 	test('Given invalid admin token, socket should be closed', async () => {
-		const ADMIN_SECRET = "testing"
-		const server = createServer({adminSecret: ADMIN_SECRET});
+		const ACCESS_SECRET = "testing"
+		const server = createServer({adminSecret: ACCESS_SECRET});
 		server.listen(42100)
 
 		const socket1 = new WebSocket(`ws://localhost:42100/v1?peerId=peer-1&relayId=relay-1`, ["invalid"])
@@ -29,8 +29,8 @@ describe('Authentication checks', () => {
 	});
 
 	test('Given no admin token, socket should be closed', async () => {
-		const ADMIN_SECRET = "testing"
-		const server = createServer({adminSecret: ADMIN_SECRET});
+		const ACCESS_SECRET = "testing"
+		const server = createServer({adminSecret: ACCESS_SECRET});
 		server.listen(42100)
 
 		const socket1 = new WebSocket(`ws://localhost:42100/v1?peerId=peer-1&relayId=relay-1`)

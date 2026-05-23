@@ -2,7 +2,7 @@ import { IncomingMessage, Server } from "node:http";
 import {WebSocketServer, WebSocket, RawData} from "ws"
 import {Duplex} from "node:stream";
 
-import {Config} from "./config.js";
+import {Config} from "./services/config/config.js";
 import { logger } from "./logger.js";
 
 

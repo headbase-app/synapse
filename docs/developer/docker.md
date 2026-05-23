@@ -10,7 +10,7 @@ docker build . --tag headbase-relay
 
 ### Run the image
 ```
-docker run -p 8080:8080 -e PORT=8080 -e ADMIN_SECRET="testing" --name hb-relay-1 headbase-relay
+docker run -p 8080:8080 -e PORT=8080 -e ACCESS_SECRET="testing" --name hb-relay-1 headbase-relay
 ```
 
 ### List running images

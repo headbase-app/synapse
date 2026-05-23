@@ -1,17 +1,21 @@
 import { createServer as createHttpServer } from 'http';
 import express from "express";
 
-import {config, Config} from "./config.js";
-import {RelayServer} from "./relay.js";
+import {Config, ConfigService} from "./services/config/config.service.js";
+import {RelayServer} from "./modules/relay/relay.controller.js";
+import { LoggerService } from './services/logger/logger.service.js';
 
 
-export function createServer(configOverride?: Partial<Config>) {
+export function bootstrap(configOverride?: Partial<Config>) {
+	const config = new ConfigService()
+	const logger = new LoggerService()
+
 	const serverConfig = {
-		...config(),
+		...config.(),
 		...(configOverride ? configOverride : {})
 	}
 
-	const app = express()
+	const app = express();
 	const server = createHttpServer(app);
 
 	app.get('/', (req, res) => {

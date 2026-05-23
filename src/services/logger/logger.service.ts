@@ -1,13 +1,13 @@
 import winston from "winston"
 
-export interface ILogger {
+export interface ILoggerService {
     error: (label: string, message: string, context?: any) => void,
     warn: (label: string, message: string, context?: any) => void,
     info: (label: string, message: string, context?: any) => void,
     debug: (label: string, message: string, context?: any) => void,
 }
 
-export class Logger implements ILogger {
+export class LoggerService implements ILoggerService {
     #winston = winston.createLogger({
         transports: [
             new winston.transports.Console(),
@@ -46,5 +46,3 @@ export class Logger implements ILogger {
         })
     }
 }
-
-export const logger = new Logger();
