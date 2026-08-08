@@ -39,6 +39,7 @@ export class RelayServer {
 		if (!this.#config.allowedOrigins.includes("*")) {
 			if (!req.headers.origin || !this.#config.allowedOrigins.includes(req.headers.origin)) {
 				// todo: send error response of some kind?
+				logger.warn("connection", "denied connection due to invalid origin");
 				socket.destroy();
 				return;
 			}
@@ -48,6 +49,7 @@ export class RelayServer {
 			const adminToken = req.headers["sec-websocket-protocol"];
 			if (typeof adminToken !== "string" || adminToken !== this.#config.adminSecret) {
 				// todo: send error response of some kind?
+				logger.warn("connection", "denied connection due to missing or invalid admin token");
 				socket.destroy();
 				return;
 			}
@@ -56,6 +58,7 @@ export class RelayServer {
 		const url = new URL(`http://localhost:0${req.url}`);
 		if (!(url.pathname === "/v1" || url.pathname === "/v1/")) {
 			// todo: send error response of some kind?
+			logger.warn("connection", "denied connection due to invalid path");
 			socket.destroy()
 			return;
 		}
@@ -64,6 +67,7 @@ export class RelayServer {
 		const peerId = url.searchParams.get("peerId");
 		if (!relayId || !peerId) {
 			// todo: send error response of some kind?
+			logger.warn("connection", "denied connection due to missing relayId/peerId");
 			socket.destroy()
 			return;
 		}
