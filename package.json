@@ -1,7 +1,7 @@
 {
-  "name": "@headbase-app/relay",
+  "name": "@headbase-app/synapse",
   "version": "0.2.0",
-  "description": "A websocket server allowing peers to connect and relay messages.",
+  "description": "A WebSocket relay allowing peers to connect via a shared public-key identity and exchange messages.",
   "main": "./build/index.js",
   "type": "module",
   "directories": {

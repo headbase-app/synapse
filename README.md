@@ -1,11 +1,11 @@
-# Headbase Relay Server
-A websocket server allowing peers to connect and relay messages.  
+# Synapse Relay Server
+Synapse is a WebSocket relay server which allows peers to connect via a shared public-key identity and exchange messages.  
 
-The server implementation itself is very generic, however the intention within Headbase is for it to be used for "peer to peer style" synchronisation of 
-data between devices.
+The [server protocol](/docs/specs/synapse-01.md) and implementation is designed to be application agnostic, however as part of Headbase its purpose is
+to provide a mechanism for data synchronisation between peers.
 
 ## Usage
-Docker is the only supported way of running the server in production. You can learn more at [docs/user/self-hosting.md](./docs/user/self-hosting.md).
+Docker is the only supported way of running a relay in production. You can learn more at [docs/user/self-hosting.md](./docs/user/self-hosting.md).
 
 ## Local Development
 
@@ -20,7 +20,7 @@ Docker is the only supported way of running the server in production. You can le
 npm install
 ```
 
-2. Configure environment variables (if desired, the server has default it will use):
+2. Configure environment variables (if desired, the server has defaults it will use):
 ```
 cp .env.example .env
 ```

@@ -48,3 +48,4 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 *.launch
 .settings/
 *.sublime-workspace
+.idea
