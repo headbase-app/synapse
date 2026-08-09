@@ -1,13 +1,17 @@
 import {describe, test, expect} from "vitest";
 import supertest from "supertest"
-import {createServer} from "../src/server";
+
+import {createServer} from "../src/create-server.js";
+import {ConfigOverride, ConfigService} from "../src/services/config/config.service.js";
+import {LoggerService} from "../src/services/logger/logger.service.js";
 
 describe('/v1 [GET]', () => {
 	test('v1 endpoint should return server info', async () => {
-		const server = createServer({
-			serverVersion: "test1",
-			adminSecret: null,
-		});
+		const MOCK_CONFIG = {relay: {accessSecret: null, serverVersion: "test1"}} satisfies ConfigOverride
+		const configService = new ConfigService(MOCK_CONFIG);
+		const loggerService = new LoggerService({level: 'error'});
+		const server = createServer(configService, loggerService);
+
 		const response = await supertest(server).get("/v1").send()
 
 		expect(response.statusCode).toEqual(200)
@@ -18,10 +22,11 @@ describe('/v1 [GET]', () => {
 	});
 
 	test('Given an admin secret, v1 endpoint should return isPublic: false', async () => {
-		const server = createServer({
-			serverVersion: "test1",
-			adminSecret: "secret",
-		});
+		const MOCK_CONFIG = {relay: {accessSecret: "test1", serverVersion: "test1"}} satisfies ConfigOverride
+		const configService = new ConfigService(MOCK_CONFIG);
+		const loggerService = new LoggerService({level: 'error'});
+		const server = createServer(configService, loggerService);
+
 		const response = await supertest(server).get("/v1").send()
 
 		expect(response.statusCode).toEqual(200)

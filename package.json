@@ -38,7 +38,6 @@
     "vitest": "^4.0.16"
   },
   "dependencies": {
-    "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "winston": "^3.19.0",
     "ws": "^8.19.0"

@@ -1,9 +1,16 @@
-import {createServer} from "../src/server";
 import {describe, beforeEach, afterEach, test, expect} from "vitest";
-import {expectNoMessagesForDuration, inspectNextMessage, awaitSocketsOpen} from "./helpers/helpers";
+import {expectNoMessagesForDuration, inspectNextMessage, awaitSocketsOpen} from "./helpers/helpers.js";
+
+import {createServer} from "../src/create-server.js";
+import {ConfigOverride, ConfigService} from "../src/services/config/config.service.js";
+import {LoggerService} from "../src/services/logger/logger.service.js";
+
+const MOCK_CONFIG = {relay: {accessSecret: null}} satisfies ConfigOverride
+const configService = new ConfigService(MOCK_CONFIG);
+const loggerService = new LoggerService({level: 'error'});
 
 describe('Relaying messages', () => {
-	const server = createServer({adminSecret: null});
+	const server = createServer(configService, loggerService);
 
 	beforeEach(() => {
 		server.listen(42100);

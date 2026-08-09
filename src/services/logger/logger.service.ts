@@ -7,12 +7,21 @@ export interface ILoggerService {
     debug: (label: string, message: string, context?: any) => void,
 }
 
+export interface LoggerConfig {
+    level?: winston.LoggerOptions['level']
+}
+
 export class LoggerService implements ILoggerService {
-    #winston = winston.createLogger({
-        transports: [
-            new winston.transports.Console(),
-        ]
-    });
+    #winston: winston.Logger;
+
+    constructor(config?: LoggerConfig) {
+        this.#winston = winston.createLogger({
+            ...config,
+            transports: [
+                new winston.transports.Console(),
+            ]
+        });
+    }
 
     warn(label: string, message: string, context?: any) {
         this.#winston.warn({

@@ -1,4 +1,5 @@
-import 'dotenv/config'
+import { loadEnvFile } from 'node:process';
+loadEnvFile();
 
 export interface Config {
 	server: {
@@ -7,15 +8,22 @@ export interface Config {
 	},
 	relay: {
 		serverVersion: string;
-		adminSecret: string | null;
+		accessSecret: string | null;
 		connectionCheckInterval: number;
 	}
 }
+export type ConfigOverride = Partial<{server: Partial<Config['server']>, relay: Partial<Config['relay']>}>
 
 export class ConfigService {
-	static vars: Config = ConfigService.loadEnvironment()
+	#vars?: Config;
 
-	static loadEnvironment() {
+	constructor(
+		private configOverride?: ConfigOverride
+	) {}
+
+	config() {
+		if (this.#vars) return this.#vars;
+
 		// todo: parse/validate variables before using
 		const PORT = parseInt(process.env.PORT as string) || 8080
 		const ACCESS_SECRET = process.env.ACCESS_SECRET || null
@@ -23,16 +31,20 @@ export class ConfigService {
 		const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : ["*"]
 		const CONNECTION_CHECK_INTERVAL = parseInt(process.env.CONNECTION_CHECK_INTERVAL as string) || 30000
 
-		return {
+		this.#vars = {
 			server: {
 				port: PORT,
 				allowedOrigins: ALLOWED_ORIGINS,
+				...(this.configOverride ? this.configOverride.server : {}),
 			},
 			relay: {
 				serverVersion: SERVER_VERSION,
-				adminSecret: ACCESS_SECRET,
-				connectionCheckInterval: CONNECTION_CHECK_INTERVAL
+				accessSecret: ACCESS_SECRET,
+				connectionCheckInterval: CONNECTION_CHECK_INTERVAL,
+				...(this.configOverride ? this.configOverride.relay : {}),
 			}
 		}
+
+		return this.#vars;
 	}
 }

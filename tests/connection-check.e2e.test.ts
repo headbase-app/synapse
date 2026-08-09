@@ -1,4 +1,3 @@
-import {createServer} from "../src/server";
 import {describe, test, expect, beforeEach, afterEach} from "vitest";
 import {
 	inspectNextMessage,
@@ -6,15 +5,22 @@ import {
 	awaitSocketsClose,
 	inspectMessagesForDuration,
 	expectOpenForDuration
-} from "./helpers/helpers";
+} from "./helpers/helpers.js";
 
+import {createServer} from "../src/create-server.js";
+import {ConfigOverride, ConfigService} from "../src/services/config/config.service.js";
+import {LoggerService} from "../src/services/logger/logger.service.js";
 
-describe('Connection checks', () => {
-	const CONNECTION_CHECK_INTERVAL = 1000
-	const CONNECTION_CHECK_TEST_DURATION = CONNECTION_CHECK_INTERVAL*4
-	const CONNECTION_CHECK_TEST_TIMEOUT = CONNECTION_CHECK_INTERVAL*6
-	const server = createServer({adminSecret: null, connectionCheckInterval: CONNECTION_CHECK_INTERVAL});
+const CONNECTION_CHECK_INTERVAL = 1000
+const CONNECTION_CHECK_TEST_DURATION = CONNECTION_CHECK_INTERVAL*4
+const CONNECTION_CHECK_TEST_TIMEOUT = CONNECTION_CHECK_INTERVAL*6
 
+const MOCK_CONFIG = {relay: {accessSecret: null, connectionCheckInterval: CONNECTION_CHECK_INTERVAL}} satisfies ConfigOverride
+const configService = new ConfigService(MOCK_CONFIG);
+const loggerService = new LoggerService({level: 'error'});
+
+describe('Connection Checks (ping/pong)', () => {
+	const server = createServer(configService, loggerService);
 	beforeEach(() => {
 		server.listen(42100);
 	});
