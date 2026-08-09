@@ -1,5 +1,5 @@
 # Synapse Relay Server
-Synapse is a WebSocket relay server which allows peers to connect via a shared public-key identity and exchange messages.  
+Synapse is a WebSocket relay server which allows peers to connect via a shared identifier and exchange messages.  
 
 The [server protocol](/docs/specs/synapse-01.md) and implementation is designed to be application agnostic, however as part of Headbase its purpose is
 to provide a mechanism for data synchronisation between peers.
