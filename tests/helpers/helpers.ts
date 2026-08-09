@@ -1,7 +1,7 @@
 import { TestContext } from "vitest";
 
 /**
- * A helper function which allows the given 'test' function to be ran against the next websocket message received
+ * A helper function which allows the given 'test' function to be run against the next websocket message received
  * after the given 'trigger' function is ran.
  */
 export async function inspectNextMessage(
@@ -22,7 +22,7 @@ export async function inspectNextMessage(
 }
 
 /**
- * A helper function which allows the given 'test' function to be ran against the each websocket message received
+ * A helper function which allows the given 'test' function to be run against the next websocket message received
  * after the given 'trigger' function is ran, for the given duration (in ms).
  */
 export async function inspectMessagesForDuration(

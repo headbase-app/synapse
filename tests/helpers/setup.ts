@@ -1,5 +1,5 @@
 import {vi} from "vitest"
-import { ILogger } from "../../src/logger"
+import { ILogger } from "../../src/logger.js"
 
 /**
  * Mock logger to remove all logging except errors during tests.

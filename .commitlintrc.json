@@ -10,7 +10,7 @@
       "tests",
       "feat",
       "fix",
-      "tools",
+      "chore",
       "wip",
       "refactor",
       "style"
