@@ -17,7 +17,7 @@ describe('Authentication Checks', () => {
 		const server = createServer(configService, loggerService);
 		server.listen(42100)
 
-		const socket1 = new WebSocket(`ws://localhost:42100/v1?peerId=peer-1&relayId=relay-1`, [MOCK_CONFIG.relay.accessSecret])
+		const socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=peer-1`, [MOCK_CONFIG.relay.accessSecret])
 		await awaitSocketsOpen([socket1]);
 
 		server.close();
@@ -27,7 +27,7 @@ describe('Authentication Checks', () => {
 		const server = createServer(configService, loggerService);
 		server.listen(42100)
 
-		const socket1 = new WebSocket(`ws://localhost:42100/v1?peerId=peer-1&relayId=relay-1`, ["invalid"])
+		const socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=peer-1`, ["invalid"])
 		await awaitSocketsError([socket1]);
 
 		server.close();
@@ -37,7 +37,7 @@ describe('Authentication Checks', () => {
 		const server = createServer(configService, loggerService);
 		server.listen(42100)
 
-		const socket1 = new WebSocket(`ws://localhost:42100/v1?peerId=peer-1&relayId=relay-1`)
+		const socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=peer-1`)
 		await awaitSocketsError([socket1]);
 
 		server.close();

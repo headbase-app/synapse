@@ -20,27 +20,21 @@ describe('Validation checks', () => {
 		server.close();
 	});
 
-	test('Given no relay id supplied, the socket should be closed', async () => {
-		const socket1 = new WebSocket(`ws://localhost:42100/v1?peerId=peer-1`)
-		await awaitSocketsError([socket1]);
-		server.close();
-	});
-
 	test('Given no peer id supplied, the socket should be closed', async () => {
-		const socket1 = new WebSocket(`ws://localhost:42100/v1?relayId=relay-1`)
+		const socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1`)
 		await awaitSocketsError([socket1]);
 		server.close();
 	});
 
 	test('Given upgrading connection on invalid url, the socket should be closed', async () => {
-		const socket1 = new WebSocket(`ws://localhost:42100/invalid?peerId=peer-1&relayId=relay-1`)
+		const socket1 = new WebSocket(`ws://localhost:42100/invalid?pid=peer-1&rid=relay-1`)
 		await awaitSocketsError([socket1]);
 		server.close();
 	});
 
-	test('Given trailing slash in URL, the socket should still be opened', async () => {
-		const socket1 = new WebSocket(`ws://localhost:42100/v1/?peerId=peer-1&relayId=relay-1`)
-		await awaitSocketsOpen([socket1]);
+	test('Given trailing slash in URL, the socket should be closed', async () => {
+		const socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1/?pid=peer-1`)
+		await awaitSocketsError([socket1]);
 		server.close();
 	});
 });

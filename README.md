@@ -1,8 +1,7 @@
 # Synapse Relay Server
-Synapse is a WebSocket relay server where peers can connect via a shared identifier and exchange messages.
+Synapse is a WebSocket relay server which peers connect to via public/private keys to exchange messages.
 
-The [server protocol](/docs/specs/synapse-01.md) and implementation is designed to be application agnostic, however as part of Headbase its purpose is
-to provide a mechanism for data synchronisation between peers.
+The [server protocol](/docs/specs/synapse-01.md) and implementation are designed to be application agnostic, however this project is developed alongside Headbase to provide a mechanism for data synchronisation between peers.
 
 ## Usage
 Docker is the only supported way of running a relay in production. You can learn more at [docs/user/self-hosting.md](./docs/user/self-hosting.md).

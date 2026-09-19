@@ -19,22 +19,27 @@ describe('Relaying messages to specific peers', () => {
 		server.close();
 	});
 
-	test("JSON messages with 'targetPeerId' should be directed to that peer", async (ctx) => {
-		const relay1socket1 = new WebSocket(`ws://localhost:42100/v1?peerId=peer-1&relayId=relay-1`)
-		const relay1socket2 = new WebSocket(`ws://localhost:42100/v1?peerId=peer-2&relayId=relay-1`)
-		const relay1socket3 = new WebSocket(`ws://localhost:42100/v1?peerId=peer-3&relayId=relay-1`)
+	test("Messages with 'to' property should be directed to that peer", async (ctx) => {
+		const relay1socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=peer-1`)
+		const relay1socket2 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=peer-2`)
+		const relay1socket3 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=peer-3`)
 		await awaitSocketsOpen([relay1socket1, relay1socket2, relay1socket3]);
 
 		const expectNoSocket3Messages = expectNoMessagesForDuration(ctx, relay1socket3, 1000)
 
-		const targetedMessage = JSON.stringify({targetPeerId: "peer-2", example: "test"})
+		// todo: peer ids must be UUID?
+		const targetedMessage = {kind: "message", to: ["peer-2"], data: "test"}
 		const expectSocket2Message = inspectNextMessage(
 			relay1socket2,
 			(event: MessageEvent) => {
-				expect(event.data).toEqual(targetedMessage)
+				const jsonEventData = JSON.parse(event.data);
+				expect(jsonEventData).toEqual({
+					...targetedMessage,
+					from: "peer-1",
+				})
 			},
 			() => {
-				relay1socket1.send(targetedMessage);
+				relay1socket1.send(JSON.stringify(targetedMessage));
 			},
 		)
 

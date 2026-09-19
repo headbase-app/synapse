@@ -7,12 +7,12 @@ class RelayClient {
 
     constructor() {
         this.isAlive = true
-        this.relay = new WebSocket("ws://relay.example.com/v1?relayId=test1&peerId=peer1", ["admin-secret"])
+        this.relay = new WebSocket("ws://relay.example.com/v1?rid=test1&pid=peer1", ["admin-secret"])
     }
 }
 
 
-const relay = new WebSocket("ws://relay.example.com/v1?relayId=test1&peerId=peer1", ["admin-secret"])
+const relay = new WebSocket("ws://relay.example.com/v1?rid=test1&pid=peer1", ["admin-secret"])
 relay.isAlive = true;
 relay.onopen = (e) => {console.log(e)}
 relay.onerror = (e) => {console.log(e)}
