@@ -1,7 +1,5 @@
 import {afterEach, beforeEach, describe, test} from "vitest";
-import {
-	awaitSocketsError,
-} from "./helpers/helpers.js";
+import {awaitSocketsError} from "./helpers/helpers.js";
 import {testPeerIds} from "./helpers/data.js";
 
 import {createServer} from "../src/create-server.js";

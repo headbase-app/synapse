@@ -3,7 +3,7 @@ import {WebSocketServer, WebSocket, RawData} from "ws"
 import {Duplex} from "node:stream";
 import {ConfigService} from "../../services/config/config.service.js";
 import {LoggerService} from "../../services/logger/logger.service.js";
-import {PeerSentMessageSchema} from "../../services/validation/messages.js";
+import {PeerIdSchema, PeerSentMessageSchema} from "../../services/validation/messages.js";
 
 
 export interface RelayWebSocket extends WebSocket {
@@ -45,7 +45,7 @@ export class RelayServer {
 		if (!relayId) {
 			// todo: send error response of some kind?
 			this.loggerService.warn("connection", "denied connection due to invalid path");
-			socket.destroy()
+			socket.destroy();
 			return;
 		}
 
@@ -68,7 +68,13 @@ export class RelayServer {
 			}
 		}
 
-		const peerId = url.searchParams.get("pid");
+		const peerIdParsed = PeerIdSchema.safeParse(url.searchParams.get("pid"));
+		if (!peerIdParsed.success) {
+			this.loggerService.warn("connection", "denied connection due to invalid pid value");
+			socket.destroy();
+			return;
+		}
+		const peerId = peerIdParsed.data;
 		const knownAs = url.searchParams.get("knownAs");
 
 		if (!relayId || !peerId) {
