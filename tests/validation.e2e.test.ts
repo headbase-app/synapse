@@ -1,7 +1,8 @@
 import {afterEach, beforeEach, describe, test} from "vitest";
 import {
-	awaitSocketsError, awaitSocketsOpen,
+	awaitSocketsError,
 } from "./helpers/helpers.js";
+import {testPeerIds} from "./helpers/data.js";
 
 import {createServer} from "../src/create-server.js";
 import {ConfigOverride, ConfigService} from "../src/services/config/config.service.js";
@@ -27,13 +28,13 @@ describe('Validation checks', () => {
 	});
 
 	test('Given upgrading connection on invalid url, the socket should be closed', async () => {
-		const socket1 = new WebSocket(`ws://localhost:42100/invalid?pid=peer-1&rid=relay-1`)
+		const socket1 = new WebSocket(`ws://localhost:42100/invalid?pid=${testPeerIds.one}&rid=relay-1`)
 		await awaitSocketsError([socket1]);
 		server.close();
 	});
 
 	test('Given trailing slash in URL, the socket should be closed', async () => {
-		const socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1/?pid=peer-1`)
+		const socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1/?pid=${testPeerIds.one}`)
 		await awaitSocketsError([socket1]);
 		server.close();
 	});

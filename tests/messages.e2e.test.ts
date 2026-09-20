@@ -1,5 +1,6 @@
 import {describe, beforeEach, afterEach, test, expect} from "vitest";
 import {expectNoMessagesForDuration, inspectNextMessage, awaitSocketsOpen} from "./helpers/helpers.js";
+import {testPeerIds} from "./helpers/data.js";
 
 import {createServer} from "../src/create-server.js";
 import {ConfigOverride, ConfigService} from "../src/services/config/config.service.js";
@@ -22,8 +23,8 @@ describe('Relaying messages', () => {
 	});
 
 	test('Two sockets can connect and relay messages', async () => {
-		const socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=peer-1`)
-		const socket2 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=peer-2`)
+		const socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.one}`)
+		const socket2 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.two}`)
 		await awaitSocketsOpen([socket1, socket2]);
 
 		await inspectNextMessage(
@@ -32,7 +33,7 @@ describe('Relaying messages', () => {
 				const jsonEventData = JSON.parse(event.data);
 				expect(jsonEventData).toEqual({
 					...testMessage,
-					from: "peer-1"
+					from: testPeerIds.one
 				})
 			},
 			() => {
@@ -42,8 +43,8 @@ describe('Relaying messages', () => {
 	});
 
 	test('Messages should not be relayed back to sender', async (ctx) => {
-		const socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=peer-1`)
-		const socket2 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=peer-2`)
+		const socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.one}`)
+		const socket2 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.two}`)
 		await awaitSocketsOpen([socket1, socket2]);
 
 		const expectNoSocket1Messages = expectNoMessagesForDuration(ctx, socket1, 1000)
@@ -53,7 +54,7 @@ describe('Relaying messages', () => {
 				const jsonEventData = JSON.parse(event.data);
 				expect(jsonEventData).toEqual({
 					...testMessage,
-					from: "peer-1"
+					from: testPeerIds.one
 				})
 			},
 			() => {
@@ -65,10 +66,10 @@ describe('Relaying messages', () => {
 	});
 
 	test('Messages should not leak between relays', async (ctx) => {
-		const relay1socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=peer-1`)
-		const relay1socket2 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=peer-2`)
-		const relay2socket1 = new WebSocket(`ws://localhost:42100/relay/relay-2?pid=peer-1`)
-		const relay2socket2 = new WebSocket(`ws://localhost:42100/relay/relay-2?pid=peer-2`)
+		const relay1socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.one}`)
+		const relay1socket2 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.two}`)
+		const relay2socket1 = new WebSocket(`ws://localhost:42100/relay/relay-2?pid=${testPeerIds.one}`)
+		const relay2socket2 = new WebSocket(`ws://localhost:42100/relay/relay-2?pid=${testPeerIds.two}`)
 		await awaitSocketsOpen([relay1socket1, relay1socket2, relay2socket1, relay2socket2]);
 
 		const expectNoMessages1 = expectNoMessagesForDuration(ctx, relay2socket1, 1000)
@@ -80,7 +81,7 @@ describe('Relaying messages', () => {
 				const eventJsonData = JSON.parse(event.data);
 				expect(eventJsonData).toEqual({
 					...testMessage,
-					from: "peer-2"
+					from: testPeerIds.two
 				})
 			},
 			() => {

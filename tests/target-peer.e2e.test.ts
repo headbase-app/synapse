@@ -1,5 +1,6 @@
 import {describe, beforeEach, afterEach, test, expect} from "vitest";
 import {expectNoMessagesForDuration, inspectNextMessage, awaitSocketsOpen} from "./helpers/helpers.js";
+import {testPeerIds} from "./helpers/data.js";
 
 import {createServer} from "../src/create-server.js";
 import {ConfigOverride, ConfigService} from "../src/services/config/config.service.js";
@@ -20,22 +21,21 @@ describe('Relaying messages to specific peers', () => {
 	});
 
 	test("Messages with 'to' property should be directed to that peer", async (ctx) => {
-		const relay1socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=peer-1`)
-		const relay1socket2 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=peer-2`)
-		const relay1socket3 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=peer-3`)
+		const relay1socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.one}`)
+		const relay1socket2 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.two}`)
+		const relay1socket3 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.three}`)
 		await awaitSocketsOpen([relay1socket1, relay1socket2, relay1socket3]);
 
 		const expectNoSocket3Messages = expectNoMessagesForDuration(ctx, relay1socket3, 1000)
 
-		// todo: peer ids must be UUID?
-		const targetedMessage = {kind: "message", to: ["peer-2"], data: "test"}
+		const targetedMessage = {kind: "message", to: [testPeerIds.two], data: "test"}
 		const expectSocket2Message = inspectNextMessage(
 			relay1socket2,
 			(event: MessageEvent) => {
 				const jsonEventData = JSON.parse(event.data);
 				expect(jsonEventData).toEqual({
 					...targetedMessage,
-					from: "peer-1",
+					from: testPeerIds.one,
 				})
 			},
 			() => {
