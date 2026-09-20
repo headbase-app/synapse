@@ -1,16 +1,26 @@
-# Synapse Relay Specification - `001`
+#  [WORKING DRAFT] Synapse Relay Specification - `001`
 
-WORK IN PROGRESS DRAFT, NOT COMPLETED.
-
-TODO:
-- More details for error responses for HTTP endpoints, and possibly relay messages?
-- Include health check mechanism?
-- Include base URL GET request and/or server info get request?
-- should direct messaging should allow multiple pids?
-
+**Notes:**:
+- Formalise `/ [GET]` request for server info?
+- Add dedicated health check mechanism, like `/health [GET]`?
+- Add more details required for error responses?
+- Add possibility for error responses from relay
+- Add messageId (`mid`) property to messages, allowing message replies?
+- Add public/private key authentication:
+  - Peer requests short-lived connection challenge for public key (JWTs perhaps, random and stateless but signed with expiry so server can validate)
+  - Peers signs challenge with private key to prove ownership over public key
+  - Peer includes challenge response when opening websocket connection to the relay
+- Allow message filtering:
+  - Allow peers to subscribe to one or more "channels" to restrict messages they receive
+    - This would allow use cases like application specific channels, database/vault/collection specific channels etc
+    - Messages could include optional channelId (`cid`, string) property
+  - Allow peers to subscribe to one or more "tags" **within a channel** to restrict messages they receive
+    - This would allow use cases like receiving a specific "slice" of messages within a channel
+    - Messages could include an optional `tags` (array of string) property.
+  - Channels and tags would allow message separation while being contained within the same single authenticated websocket connection
 ---
 
-This specification defines the behaviour and message protocol which a synapse relay server MUST implement.
+This specification defines the behaviour and message protocol a synapse relay server MUST implement.  
 This covers the process for authentication and a message protocol designed to establish a shared foundation while allowing peers to evolve their own custom messaging protocols on top.  
 
 Note that this initial specification version does not define a robust identity or authentication system, just the bare minimum to support a single user and protect from public access.
