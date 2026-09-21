@@ -1,12 +1,16 @@
-# Synapse Relay Server
+ # Synapse Relay Server
+
 Synapse is a private WebSocket relay server with peer discovery, broadcasting & direct messaging between peers and message filtering via topics.
 
-The [server protocol](/docs/specs/synapse-001.md) and implementation are designed to be application agnostic, however the use case within Headbase is allowing different devices (peers) to connect and synchronisation data.
+The [server protocol](/docs/specs/synapse-001.md) and implementation are designed to be application agnostic, however the use case within Headbase is allowing different devices (peers) to connect and synchronization data.
+
+> [!CAUTION]
+> This project is not yet stable and the specification and implementation may change drastically between any `v0.x.x` version.
 
 **Features:**
 - Authentication via static secret ([hopefully changing to public/private key in future]()).
 - No "global" or "public" relay, peers share their own private relay. (currently via arbitrary id, hopefully via public key in future as per above).
-- Lightweight message protocol to ensure peer compatability.
+- Lightweight message protocol to ensure peer compatibility.
 - Peer discovery mechanism.
 - Broadcast and direct messaging supported between peers.
 - Message topics allow peers to request a filtered subset of broadcast messages.
