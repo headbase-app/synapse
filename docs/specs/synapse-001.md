@@ -3,21 +3,13 @@
 **Notes:**:
 - Formalise `/ [GET]` request for server info?
 - Add dedicated health check mechanism, like `/health [GET]`?
-- Add more details required for error responses?
-- Add possibility for error responses from relay
-- Add messageId (`mid`) property to messages, allowing message replies?
+- Add possibility for error responses from relay?
+- Add messageId (`mid`) property to messages, allowing for reply patterns?
 - Add public/private key authentication:
   - Peer requests short-lived connection challenge for public key (JWTs perhaps, random and stateless but signed with expiry so server can validate)
   - Peers signs challenge with private key to prove ownership over public key
   - Peer includes challenge response when opening websocket connection to the relay
-- Allow message filtering:
-  - Allow peers to subscribe to one or more "channels" to restrict messages they receive
-    - This would allow use cases like application specific channels, database/vault/collection specific channels etc
-    - Messages could include optional channelId (`cid`, string) property
-  - Allow peers to subscribe to one or more "tags" **within a channel** to restrict messages they receive
-    - This would allow use cases like receiving a specific "slice" of messages within a channel
-    - Messages could include an optional `tags` (array of string) property.
-  - Channels and tags would allow message separation while being contained within the same single authenticated websocket connection
+- Revisit message topics/filter messages.
 ---
 
 This specification defines the behaviour and message protocol a synapse relay server MUST implement.  
@@ -71,12 +63,55 @@ When a peer connect or disconnects, the server MUST broadcast a `peers.list` mes
 Peers may also choose to send a `peers.discover` message at any time, which the server MUST respond to by sending a `peers.list` message.   
 When responding to a `peers.discover` message, the server MUST only send the reply to the requesting peer.
 
-### Message Sending
-A peer can send a message to all other connected peers using the `message` message. On receiving a message, the server MUST
-attach the `from` property (the sending peers `pid`) before broadcasting the message to all other peers.   
-The sending peer MUST not be re-sent their own message.
+### Messages
+A peer can send a message to all other connected peers using `broadcast`.
+On receiving a broadcast message, the server MUST attach the `from` property (the sending peers `pid`) before broadcasting the message to other peers.   
+The sending peer MUST not be re-sent their own message.  
 
-A peer may choose send to a specific peer or group of peers by setting the `to` property to a peer identifier (`pid`) value or array of identifiers.  
+Broadcast messages MAY include a `topics` property (array of strings) used to categorise messages at the sending peers discretion.
+
+#### Topics
+At any point a peer MAY choose to send a `filter` message to request the relay only sends `broadcast` messages with a specific `topics` or group of `topics`:
+
+```json
+{
+  "kind": "filter",
+  "topics": [
+    "topic1",
+    ["topic2", "topic3"],
+    "topic4"
+  ]
+}
+```
+
+On receiving this filter request, the relay MUST store the peers topic filters and apply these until the peer sends another `filter` message or an `unfilter` message.  
+The server MUST not relay `filter`/`unfilter` messages between peers, these are unique to each connection.
+
+When broadcasting within a relay, the server MUST check for any peer topic filters and if present MUST only send to the peer if a filter condition is met.
+
+Topic filters MUST be interpreted as follows:
+- Given a string, a message `topics` array MUST contain that value.
+- Given an array of strings, a message `topics` array MUST contain ALL values.
+- Only one condition needs to be met for a peer to receive the message.
+- Given a message with no `topics` array, this MUST not be sent to peers with active topic filters.
+
+Given the example filter message above for example, the logical representation of the conditions would be as follows:
+```
+topic1 OR (topic2 AND topic 3) OR topic4
+```
+
+After sending a `subscribe` message, peers CAN assume the topic filters are now applied,
+however SHOULD always be prepared to handle or ignore unexpected messages at the peers discretion.
+
+At any point a peer MAY choose to send an `unfilter` message to remove the active topic filters previously applied.  
+When receiving this message, the server MUST remove the topic filters and begin sending all broadcast messages again.  
+If the peer has no active topic filters and sends an `unfilter` message, the server MAY choose to ignore the message
+or close the connection.
+
+### Direct Messaging
+A peer can send direct messages to one or more specific peers connected to the same relay using the `dm` message.   
+
+This message kind includes a `to` property which MUST always be an array of one or more peer identifiers (`pid`).
 The server MUST still attach the `from` property and MUST retain the `to` property when sending the message.  
 The server MUST then send the message to the specific peer/s only.
 
@@ -114,7 +149,7 @@ Server will respond with a `peers.list` message (see below).
 Message to broadcast to all peers:
 ```json5
 {
-  kind: "message",
+  kind: "broadcast",
   // (optional) string or object - the message content
   // treated as opaque by the relay
   data: "",
@@ -122,13 +157,15 @@ Message to broadcast to all peers:
   // treated as opaque by the relay, is intended to allow peers to include metadata seperate from the message content.
   // this could be used in cases such as versioning, hashing, additional type metadata etc.
   meta: {},
+  // (optional) array of strings - topics to categorise messages which other peers can filter.
+  topics: ["topic1"]
 }
 ```
 
-Message to send to a specific peer/group of peers:
+Direct message a specific peer/group of peers:
 ```json5
 {
-  kind: "message",
+  kind: "dm",
   // (required) array of UUIDv4 string - included to send the message to a specific peer
   to: ["00000000-0000-0000-0000-000000000000"],
   // (optional) string or object - the message content
@@ -141,14 +178,33 @@ Message to send to a specific peer/group of peers:
 }
 ```
 
+Request that the relay only sends `broadcast` messages matching on of the supplied topic conditions:
+```json5
+{
+  kind: "filter",
+  // (required) string|string[] - topic filters the relay should apply.
+  topics: [
+    "topic1", // topics includes topic1
+    ["topic2", "topic3"] // topics includes topic AND topic3
+  ],
+}
+```
+
+Request that the relay removes any current topic filters:
+```json5
+{
+  kind: "unfilter"
+}
+```
+
 #### Server Sent Message
 
-On receiving a `message` kind (broadcast or direct), the relay MUST add the `from` property containing the peer's `pid` value before broadcasting to other connected peers.
+On receiving a `broadcast` or `dm` message, the relay MUST add the `from` property containing the peer's `pid` value when relaying on to the other peer/s.
 
 Message broadcast to all peers:
 ```json5
 {
-  kind: "message",
+  kind: "broadcast",
   // (required) UUIDv4 string - the peer which sent the message
   from: "00000000-0000-0000-0000-000000000000",
   // (optional) string or object - the message content
@@ -158,13 +214,15 @@ Message broadcast to all peers:
   // treated as opaque by the relay, is intended to allow peers to include metadata seperate from the message content.
   // this could be used in cases such as versioning, hashing, additional type metadata etc.
   meta: {},
+  // (optional) array of strings - topics to categorise messages which other peers can filter.
+  topics: ["topic1"]
 }
 ```
 
-Message sent to a specific peer/group of peers:
+Direct message sent to a specific peer/group of peers:
 ```json5
 {
-  kind: "message",
+  kind: "dm",
   // (required) UUIDv4 string - the peer which sent the message
   from: "00000000-0000-0000-0000-000000000000",
   // (optional) string or object - the message content
@@ -177,7 +235,7 @@ Message sent to a specific peer/group of peers:
 }
 ```
 
-Message response to `peer.discover` requests sent by peers. This MUST only be sent to the peer sending the request:
+Response to `peer.discover` requests sent by peers. This MUST only be sent to the peer sending the request:
 ```json5
 {
   kind: "peers.list",
