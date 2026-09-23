@@ -20,8 +20,8 @@ const MOCK_CONFIG = {relay: {accessSecret: null, connectionCheckInterval: CONNEC
 const configService = new ConfigService(MOCK_CONFIG);
 const loggerService = new LoggerService({level: 'error'});
 
-const pingMessage = JSON.stringify({kind: "ping"})
-const pongMessage = JSON.stringify({kind: "pong"})
+const pingMessage = JSON.stringify({kind: "health/ping"})
+const pongMessage = JSON.stringify({kind: "health/pong"})
 
 describe('Connection Checks (ping/pong)', () => {
 	const server = createServer(configService, loggerService);

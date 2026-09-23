@@ -3,7 +3,7 @@ import {WebSocketServer, WebSocket, RawData} from "ws"
 import {Duplex} from "node:stream";
 import {ConfigService} from "../../services/config/config.service.js";
 import {LoggerService} from "../../services/logger/logger.service.js";
-import {PeerIdSchema, PeerSentMessageSchema} from "../../services/validation/messages.js";
+import {PeerIdSchema, PeerSentMessageSchema, RelaySentMessageSchema} from "../../services/validation/messages.js";
 
 
 export interface RelayWebSocket extends WebSocket {
@@ -103,7 +103,6 @@ export class RelayServer {
 		});
 
 		ws.on("message", async (data, isBinary) => {
-			// todo: validate to a set of expected messages?
 			// todo: apply rate limiting/abuse protection for clients?
 			this.handleMessage(ws, data, isBinary)
 		});
@@ -138,13 +137,13 @@ export class RelayServer {
 		}
 
 
-		if (message.kind === "pong") return
-		if (message.kind === "ping") {
-			sendingSocket.send(JSON.stringify({kind: "pong"}))
+		if (message.kind === "health/pong") return
+		if (message.kind === "health/ping") {
+			this.send(sendingSocket, {kind: "health/pong"});
 			return;
 		}
 
-		if (message.kind === "peers.discover") {
+		if (message.kind === "peers/discover") {
 			const relayPeers: {pid: string, knownAs?: string}[] = []
 			// todo: this forEach might scale badly with lots of connected sockets?
 			// If so, sockets could be stored in a {rid: socket[]} map to avoid looping over all clients.
@@ -157,14 +156,16 @@ export class RelayServer {
 				}
 			})
 
-			sendingSocket.send(JSON.stringify({
-				kind: "peers.list",
-				peers: relayPeers,
-			}))
+			this.send(sendingSocket, {kind: "peers/list", peers: relayPeers});
+			return
+		}
+
+		if (message.kind === "topics/subscribe" || message.kind === "topics/unsubscribe") {
+			this.loggerService.warn("message", "received topics/* message which is not implemented yet", message)
 			return;
 		}
 
-		if (message.to) {
+		if (message.kind === "msg/dm") {
 			// todo: this forEach might scale badly with lots of connected sockets?
 			// If so, sockets could be stored in a {rid: socket[]} map to avoid looping over all clients.
 			for (const [client] of this.#wss.clients.entries()) {
@@ -172,27 +173,27 @@ export class RelayServer {
 					(client as RelayWebSocket).rid === sendingSocket.rid
 					&& message.to.includes((client as RelayWebSocket).pid)
 				) {
-					client.send(JSON.stringify({
+					this.send((client as RelayWebSocket), {
 						...message,
 						from: sendingSocket.pid,
-					}))
+					});
 				}
 			}
+			return;
 		}
-		else {
-			// todo: this forEach might scale badly with lots of connected sockets?
-			// If so, sockets could be stored in a {rid: socket[]} map to avoid looping over all clients.
-			for (const [client] of this.#wss.clients.entries()) {
-				if (
-					(client as RelayWebSocket).rid === sendingSocket.rid
-					&& client != sendingSocket
-					&& client.readyState === WebSocket.OPEN
-				) {
-					client.send(JSON.stringify({
-						...message,
-						from: sendingSocket.pid,
-					}))
-				}
+
+		// todo: this forEach might scale badly with lots of connected sockets?
+		// If so, sockets could be stored in a {rid: socket[]} map to avoid looping over all clients.
+		for (const [client] of this.#wss.clients.entries()) {
+			if (
+				(client as RelayWebSocket).rid === sendingSocket.rid
+				&& client != sendingSocket
+				&& client.readyState === WebSocket.OPEN
+			) {
+				this.send((client as RelayWebSocket), {
+					...message,
+					from: sendingSocket.pid,
+				});
 			}
 		}
 	}
@@ -207,7 +208,17 @@ export class RelayServer {
 				return relaySocket.terminate();
 			}
 			relaySocket.isAlive = false;
-			relaySocket.send(JSON.stringify({kind: "ping"}));
+			this.send(relaySocket, {kind: "health/ping"})
 		});
+	}
+
+	/**
+	 * Type-safe wrapper to send message to connected socket.
+	 *
+	 * @param socket
+	 * @param message
+	 */
+	send(socket: RelayWebSocket, message: RelaySentMessageSchema) {
+		socket.send(JSON.stringify(message));
 	}
 }

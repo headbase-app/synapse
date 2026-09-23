@@ -10,7 +10,7 @@ const MOCK_CONFIG = {relay: {accessSecret: null}} satisfies ConfigOverride
 const configService = new ConfigService(MOCK_CONFIG);
 const loggerService = new LoggerService({level: 'error'});
 
-describe('Relaying messages to specific peers', () => {
+describe('[msg/dm] Relaying messages to specific peers', () => {
 	const server = createServer(configService, loggerService);
 
 	beforeEach(() => {
@@ -20,7 +20,7 @@ describe('Relaying messages to specific peers', () => {
 		server.close();
 	});
 
-	test("Messages with 'to' property should be directed to that peer", async (ctx) => {
+	test("Direct messages (msg/dm) should be directed to the requested peer", async (ctx) => {
 		const relay1socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.one}`)
 		const relay1socket2 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.two}`)
 		const relay1socket3 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.three}`)
@@ -28,7 +28,7 @@ describe('Relaying messages to specific peers', () => {
 
 		const expectNoSocket3Messages = expectNoMessagesForDuration(ctx, relay1socket3, 1000)
 
-		const targetedMessage = {kind: "message", to: [testPeerIds.two], data: "test"}
+		const targetedMessage = {kind: "msg/dm", to: [testPeerIds.two], data: "test"}
 		const expectSocket2Message = inspectNextMessage(
 			relay1socket2,
 			(event: MessageEvent) => {

@@ -10,7 +10,7 @@ const MOCK_CONFIG = {relay: {accessSecret: null}} satisfies ConfigOverride
 const configService = new ConfigService(MOCK_CONFIG);
 const loggerService = new LoggerService({level: 'error'});
 
-const testMessage = {kind: "message", data: "test"}
+const testMessage = {kind: "msg/all", data: "test"}
 
 describe('Relaying messages', () => {
 	const server = createServer(configService, loggerService);
