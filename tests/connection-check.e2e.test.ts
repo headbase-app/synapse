@@ -3,10 +3,9 @@ import {Server} from "node:http";
 
 import {
 	inspectNextMessage,
-	awaitSocketsOpen,
 	awaitSocketsClose,
 	inspectMessagesForDuration,
-	expectOpenForDuration
+	expectOpenForDuration, awaitSocketsOpenAndPeerListMessage
 } from "./helpers/helpers.js";
 import {testPeerIds} from "./helpers/data.js";
 import {createServer} from "../src/create-server.js";
@@ -40,7 +39,7 @@ describe('Connection Checks (ping/pong)', () => {
 
 	test('When a peer sends ping, Then server should reply with pong', async () => {
 		const socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.one}`)
-		await awaitSocketsOpen([socket1]);
+		await awaitSocketsOpenAndPeerListMessage([socket1]);
 
 		await inspectNextMessage(
 			socket1,
@@ -56,7 +55,7 @@ describe('Connection Checks (ping/pong)', () => {
 	test('When a peer sends ping, Then server should not relay to other devices', async (ctx) => {
 		const socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.one}`)
 		const socket2 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.two}`)
-		await awaitSocketsOpen([socket1, socket2]);
+		await awaitSocketsOpenAndPeerListMessage([socket1, socket2]);
 
 		const expectNoSocket2Messages = inspectMessagesForDuration(socket2, CONNECTION_CHECK_TEST_DURATION, (e) => {
 			expect(e.data).not.toEqual(pongMessage)
@@ -82,14 +81,14 @@ describe('Connection Checks (ping/pong)', () => {
 				socket1.send(pongMessage)
 			}
 		}
-		await awaitSocketsOpen([socket1]);
+		await awaitSocketsOpenAndPeerListMessage([socket1]);
 		await expectOpenForDuration(ctx, socket1, CONNECTION_CHECK_TEST_DURATION);
 	}, CONNECTION_CHECK_TEST_TIMEOUT);
 
 	test('When a peer sends pong, Then server should not relay to other devices', async () => {
 		const socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.one}`)
 		const socket2 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.two}`)
-		await awaitSocketsOpen([socket1, socket2]);
+		await awaitSocketsOpenAndPeerListMessage([socket1, socket2]);
 
 		const expectNoPong = inspectMessagesForDuration(
 			socket2,
@@ -112,7 +111,7 @@ describe('Connection Checks (ping/pong)', () => {
 
 	test("When peer sends messages but not ping replies for CONNECTION_CHECK_INTERVAL, Then server should still maintain the connection", async (ctx) => {
 		const socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.one}`);
-		await awaitSocketsOpen([socket1]);
+		await awaitSocketsOpenAndPeerListMessage([socket1]);
 
 		const interval = setInterval(() => {
 			socket1.send(JSON.stringify({kind: "msg/all", data: "test"}))
@@ -131,7 +130,7 @@ describe('Connection Checks (ping/pong)', () => {
 				socket2.send(pongMessage)
 			}
 		}
-		await awaitSocketsOpen([socket1, socket2]);
+		await awaitSocketsOpenAndPeerListMessage([socket1, socket2]);
 
 		const expectSocket1Close = awaitSocketsClose([socket1]);
 		const expectSocket2Open = expectOpenForDuration(ctx, socket2, CONNECTION_CHECK_TEST_DURATION);

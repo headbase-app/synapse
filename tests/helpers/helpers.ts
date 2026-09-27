@@ -1,4 +1,5 @@
 import { TestContext } from "vitest";
+import {RelaySentMessageSchema} from "../../src/services/validation/messages.js";
 
 /**
  * A helper function which allows the given 'test' function to be run against the next websocket message received
@@ -60,6 +61,25 @@ export async function awaitSocketsOpen(sockets: WebSocket[]) {
 	}));
 
 	await Promise.all(openPromises)
+}
+
+/**
+ * A helper function to await the 'open' event on all given sockets AND for a peers/list message
+ * which the server sends to all relay peers.
+ */
+export async function awaitSocketsOpenAndPeerListMessage(sockets: WebSocket[]) {
+	const awaitPeerLists = sockets.map((socket) => new Promise<void>(resolve => {
+		const onMessage = (e: MessageEvent) => {
+			const message = JSON.parse(e.data) as RelaySentMessageSchema;
+			if (message.kind === "peers/list") {
+				socket.removeEventListener("message", onMessage);
+				resolve();
+			}
+		}
+		socket.addEventListener("message", onMessage)
+	}));
+
+	await Promise.all([awaitSocketsOpen(sockets), ...awaitPeerLists]);
 }
 
 /**

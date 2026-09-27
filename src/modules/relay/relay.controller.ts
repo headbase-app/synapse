@@ -1,7 +1,7 @@
 import { IncomingMessage, Server } from "node:http";
 import {WebSocketServer, WebSocket, RawData} from "ws"
 import {Duplex} from "node:stream";
-import {PeerData, RelayService} from "./relay.service.js";
+import {MessageReply, PeerData, RelayService} from "./relay.service.js";
 import {ZodError} from "zod";
 
 import {ConfigService} from "../../services/config/config.service.js";
@@ -46,13 +46,14 @@ export class RelayController {
 
 		try {
 			const peerData = PeerData.parse({rid, pid, knownAs})
-			await this.relayService.connect(peerData, accessSecret)
+			const replies = await this.relayService.connect(peerData, accessSecret)
 
 			// @ts-ignore --- Using custom type which expands WebSocket type with metadata
 			this.#wss.handleUpgrade(req, socket, head, async (socket: RelayPeer) => {
 				socket.peerData = peerData;
 				socket.isAlive = true;
 				this.#wss.emit("connection", socket, req);
+				this.sendReplies(replies)
 			})
 		}
 		catch (error) {
@@ -108,11 +109,7 @@ export class RelayController {
 
 		ws.isAlive = true;
 		const replies = await this.relayService.processMessage(ws.peerData.pid, message)
-		for (const reply of replies) {
-			for (const pid of reply.peers) {
-				this.send(pid, reply.message)
-			}
-		}
+		this.sendReplies(replies)
 	}
 
 	async runConnectionCheck() {
@@ -164,5 +161,18 @@ export class RelayController {
 			throw new Error(`[controller] Attempted to send message to peer '${target}' but it was not found.`)
 		}
 		socket.send(JSON.stringify(message));
+	}
+
+	/**
+	 * Type-safe wrapper to send message replies.
+	 *
+	 * @param replies
+	 */
+	sendReplies(replies: MessageReply[]) {
+		for (const reply of replies) {
+			for (const pid of reply.peers) {
+				this.send(pid, reply.message)
+			}
+		}
 	}
 }

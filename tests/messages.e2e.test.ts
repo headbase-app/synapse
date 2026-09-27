@@ -1,11 +1,12 @@
 import {describe, beforeEach, afterEach, test, expect} from "vitest";
+import {Server} from "node:http";
+
 import {
 	expectNoMessagesForDuration,
-	awaitSocketsOpen,
-	inspectMessagesForDuration
+	inspectMessagesForDuration,
+	awaitSocketsOpenAndPeerListMessage
 } from "./helpers/helpers.js";
 import {testPeerIds} from "./helpers/data.js";
-
 import {createServer} from "../src/create-server.js";
 import {ConfigOverride, ConfigService} from "../src/services/config/config.service.js";
 import {LoggerService} from "../src/services/logger/logger.service.js";
@@ -21,9 +22,13 @@ const loggerService = new LoggerService({level: 'error'});
 const testMessage = {kind: "msg/all", data: "test"}
 
 describe('Relaying messages', () => {
-	const server = createServer(configService, loggerService);
+	let server: Server
 
 	beforeEach(() => {
+		// todo: new server required for each test or final tests breaks.
+		// 	Likely leak of data between tests due to reuse of stateful RelayService.
+		// 	Perhaps server needs proper setup/teardown lifecycle methods.
+		server = createServer(configService, loggerService);
 		server.listen(42100);
 	});
 	afterEach(() => {
@@ -33,7 +38,7 @@ describe('Relaying messages', () => {
 	test('Two sockets can connect and relay messages', async () => {
 		const socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.one}`)
 		const socket2 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.two}`)
-		await awaitSocketsOpen([socket1, socket2]);
+		await awaitSocketsOpenAndPeerListMessage([socket1, socket2]);
 
 		await inspectMessagesForDuration(
 			socket2,
@@ -59,7 +64,7 @@ describe('Relaying messages', () => {
 	test('Messages should not be relayed back to sender', async (ctx) => {
 		const socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.one}`)
 		const socket2 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.two}`)
-		await awaitSocketsOpen([socket1, socket2]);
+		await awaitSocketsOpenAndPeerListMessage([socket1, socket2]);
 
 		const expectNoSocket1Messages = expectNoMessagesForDuration(ctx, socket1, 1000)
 		const expectSocket2Message = inspectMessagesForDuration(
@@ -88,12 +93,12 @@ describe('Relaying messages', () => {
 	test('Messages should not leak between relays', async (ctx) => {
 		const relay1socket1 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.one}`)
 		const relay1socket2 = new WebSocket(`ws://localhost:42100/relay/relay-1?pid=${testPeerIds.two}`)
-		const relay2socket1 = new WebSocket(`ws://localhost:42100/relay/relay-2?pid=${testPeerIds.one}`)
-		const relay2socket2 = new WebSocket(`ws://localhost:42100/relay/relay-2?pid=${testPeerIds.two}`)
-		await awaitSocketsOpen([relay1socket1, relay1socket2, relay2socket1, relay2socket2]);
+		const relay2socket1 = new WebSocket(`ws://localhost:42100/relay/relay-2?pid=${testPeerIds.three}`)
+
+		// Connection should trigger peers/list messages, so wait for those first too.
+		await awaitSocketsOpenAndPeerListMessage([relay1socket1, relay1socket2, relay2socket1]);
 
 		const expectNoMessages1 = expectNoMessagesForDuration(ctx, relay2socket1, 1000)
-		const expectNoMessages2 = expectNoMessagesForDuration(ctx, relay2socket1, 1000)
 
 		const expectSocket1Message = inspectMessagesForDuration(
 			relay1socket1,
@@ -117,7 +122,6 @@ describe('Relaying messages', () => {
 
 		await Promise.all([
 			expectNoMessages1,
-			expectNoMessages2,
 			expectSocket1Message,
 		]);
 	}, CONNECTION_CHECK_TEST_TIMEOUT);

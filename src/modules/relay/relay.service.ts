@@ -41,10 +41,15 @@ export class RelayService {
 				throw new Error("[connect] denied connection due to missing or invalid admin token")
 			}
 		}
+		if (this.#peerLookup.get(peer.pid)) {
+			throw new Error("[connect] denied connection due to existing peer with same id ")
+		}
 
 		const relay = this.#relayLookup.get(peer.rid) ?? []
 		this.#relayLookup.set(peer.rid, [...relay, peer]);
 		this.#peerLookup.set(peer.pid, peer)
+
+		return [this.#createPeerListReply(peer.rid)]
 	}
 
 	async processMessage(from: string, message: PeerSentMessageSchema): Promise<MessageReply[]> {
@@ -63,15 +68,7 @@ export class RelayService {
 			}];
 		}
 		if (message.kind === "peers/discover") {
-			const peers = this.#relayLookup.get(peer.rid) ?? [];
-
-			return [{
-				peers: [from],
-				message: {
-					kind: "peers/list",
-					peers: peers.map(peer => ({pid: peer.pid, knownAs: peer.knownAs }))
-				}
-			}]
+			return [this.#createPeerListReply(peer.rid, [from])]
 		}
 		if (message.kind === "topics/subscribe" || message.kind === "topics/unsubscribe") {
 			this.loggerService.warn("message", "received topic subscription message which is not implemented yet", message)
@@ -79,7 +76,7 @@ export class RelayService {
 		}
 		if (message.kind === "msg/dm") {
 			return [{
-				peers: [from],
+				peers: message.to,
 				message: {
 					...message,
 					from
@@ -99,6 +96,18 @@ export class RelayService {
 				from
 			}
 		}]
+	}
+
+	#createPeerListReply(rid: string, replyPeers?: string[]): MessageReply {
+		const peers = this.#relayLookup.get(rid) ?? [];
+
+		return {
+			peers: replyPeers ?? peers.map(peer => peer.pid),
+			message: {
+				kind: "peers/list",
+				peers: peers.map(peer => ({pid: peer.pid, knownAs: peer.knownAs }))
+			}
+		}
 	}
 
 	async disconnect(pid: string) {
