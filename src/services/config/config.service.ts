@@ -4,7 +4,6 @@ loadEnvFile();
 export interface Config {
 	server: {
 		port: number;
-		allowedOrigins: string[];
 	},
 	relay: {
 		serverVersion: string;
@@ -34,7 +33,6 @@ export class ConfigService {
 		this.#vars = {
 			server: {
 				port: PORT,
-				allowedOrigins: ALLOWED_ORIGINS,
 				...(this.configOverride ? this.configOverride.server : {}),
 			},
 			relay: {

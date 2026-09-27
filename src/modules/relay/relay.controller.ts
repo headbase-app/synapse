@@ -1,23 +1,20 @@
 import { IncomingMessage, Server } from "node:http";
 import {WebSocketServer, WebSocket, RawData} from "ws"
 import {Duplex} from "node:stream";
+import {PeerData, RelayService} from "./relay.service.js";
+import {ZodError} from "zod";
+
 import {ConfigService} from "../../services/config/config.service.js";
 import {LoggerService} from "../../services/logger/logger.service.js";
-import {PeerIdSchema, PeerSentMessageSchema, RelaySentMessageSchema} from "../../services/validation/messages.js";
+import {PeerSentMessageSchema, RelaySentMessageSchema} from "../../services/validation/messages.js";
 
-
-export interface RelayWebSocket extends WebSocket {
-	// A unique identifier supplied by the peer, used for directing messages.
-	pid: string
-	// An optional human-readable name supplied by the peer
-	knownAs?: string
-	// The relay identifier used to connect peers together.
-	rid: string
+export interface RelayPeer extends WebSocket {
+	peerData: PeerData;
 	// Measuring connection activity to close unresponsive sockets
 	isAlive: boolean
 }
 
-export class RelayServer {
+export class RelayController {
 	#wss: WebSocketServer
 	#connectionCheck: NodeJS.Timeout
 
@@ -25,6 +22,7 @@ export class RelayServer {
 		server: Server,
 		private readonly configService: ConfigService,
 		private readonly loggerService: LoggerService,
+		private readonly relayService: RelayService,
 	) {
 		this.#wss = new WebSocketServer({ noServer: true });
 
@@ -39,76 +37,50 @@ export class RelayServer {
 	async handleServerUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer) {
 		const baseUrl = `http://${req.headers.host}`
 		const url = new URL(`${baseUrl}${req.url}`);
-		const relayPath = new URLPattern(`${baseUrl}/relay/:rid`)
-		const relayId = relayPath.exec(url)?.pathname?.groups['rid']
-
-		if (!relayId) {
-			// todo: send error response of some kind?
-			this.loggerService.warn("connection", "denied connection due to invalid path");
-			socket.destroy();
-			return;
-		}
-
-		if (!this.configService.config().server.allowedOrigins.includes("*")) {
-			if (!req.headers.origin || !this.configService.config().server.allowedOrigins.includes(req.headers.origin)) {
-				// todo: send error response of some kind?
-				this.loggerService.warn("connection", "denied connection due to invalid origin");
-				socket.destroy();
-				return;
-			}
-		}
-
-		if (this.configService.config().relay.accessSecret) {
-			const adminToken = req.headers["sec-websocket-protocol"];
-			if (typeof adminToken !== "string" || adminToken !== this.configService.config().relay.accessSecret) {
-				// todo: send error response of some kind?
-				this.loggerService.warn("connection", "denied connection due to missing or invalid admin token");
-				socket.destroy();
-				return;
-			}
-		}
-
-		const peerIdParsed = PeerIdSchema.safeParse(url.searchParams.get("pid"));
-		if (!peerIdParsed.success) {
-			this.loggerService.warn("connection", "denied connection due to invalid pid value");
-			socket.destroy();
-			return;
-		}
-		const peerId = peerIdParsed.data;
+		const relayPath = new URLPattern(`${baseUrl}/relay/:rid`);
+		
+		const rid = relayPath.exec(url)?.pathname?.groups["rid"];
+		const pid = url.searchParams.get("pid");
 		const knownAs = url.searchParams.get("knownAs");
+		const accessSecret = req.headers["sec-websocket-protocol"];
 
-		if (!relayId || !peerId) {
-			// todo: send error response of some kind?
-			this.loggerService.warn("connection", "denied connection due to missing rid/pid query params");
-			socket.destroy()
-			return;
+		try {
+			const peerData = PeerData.parse({rid, pid, knownAs})
+			await this.relayService.connect(peerData, accessSecret)
+
+			// @ts-ignore --- Using custom type which expands WebSocket type with metadata
+			this.#wss.handleUpgrade(req, socket, head, async (socket: RelayPeer) => {
+				socket.peerData = peerData;
+				socket.isAlive = true;
+				this.#wss.emit("connection", socket, req);
+			})
 		}
-
-		// @ts-ignore --- Using custom type which expands WebSocket type with metadata
-		this.#wss.handleUpgrade(req, socket, head, async (socket: RelayWebSocket) => {
-			socket.pid = peerId;
-			socket.rid = relayId;
-			socket.knownAs = knownAs ?? undefined
-			socket.isAlive = true;
-			this.#wss.emit("connection", socket, req);
-		})
+		catch (error) {
+			if (error instanceof ZodError) {
+				this.loggerService.warn("connection", "denied connection due to invalid peer data", error);	
+			}
+			else {
+				this.loggerService.warn("connection", "denied connection due to unexpected error", error);
+			}
+			socket.destroy();
+		}
 	}
 
-	handleConnection(ws: RelayWebSocket) {
-		this.loggerService.info("connection", `peer '${ws.pid}' (${ws.knownAs ?? 'no knownAs'}) connected to relay '${ws.rid}'`)
+	handleConnection(ws: RelayPeer) {
+		this.loggerService.info("connection", `peer '${ws.peerData.pid}' (${ws.peerData.knownAs ?? 'no knownAs'}) connected to relay '${ws.peerData.rid}'`)
 
 		// todo: is this needed?
 		ws.on("error", (e) => {
-			this.loggerService.error("server", `encountered error with peer '${ws.pid}' (${ws.knownAs ?? 'no knownAs'})`, e)
+			this.loggerService.error("server", `encountered error with peer '${ws.peerData.pid}' (${ws.peerData.knownAs ?? 'no knownAs'})`, e)
 		});
 
 		ws.on("message", async (data, isBinary) => {
 			// todo: apply rate limiting/abuse protection for clients?
-			this.handleMessage(ws, data, isBinary)
+			await this.handleMessage(ws, data, isBinary)
 		});
 
 		ws.on("close", async () => {
-			this.loggerService.info("connection", `peer '${ws.pid}' (${ws.knownAs ?? 'no knownAs'}) disconnecting from relay '${ws.rid}'`)
+			this.loggerService.info("connection", `peer '${ws.peerData.pid}' (${ws.peerData.knownAs ?? 'no knownAs'}) disconnecting from relay '${ws.peerData.rid}'`)
 		})
 	}
 
@@ -117,108 +89,80 @@ export class RelayServer {
 		clearInterval(this.#connectionCheck)
 	}
 
-	handleMessage(sourceSocket: RelayWebSocket, data: RawData, isBinary?: boolean) {
-		const sendingSocket = (sourceSocket as RelayWebSocket)
-		sendingSocket.isAlive = true
+	async handleMessage(sourceSocket: RelayPeer, data: RawData, isBinary?: boolean) {
+		const ws = (sourceSocket as RelayPeer);
 
 		if (isBinary) {
-			this.loggerService.warn("message", `peer '${sendingSocket.pid}' sent invalid message (as binary)`)
+			this.loggerService.warn("message", `peer '${ws.peerData.pid}' (${ws.peerData.knownAs ?? 'no knownAs'}) sent invalid message, binary not allowed.`)
 			return;
 		}
-
 		let message: PeerSentMessageSchema;
 		try {
 			const rawMessage = JSON.parse(data.toString());
 			message = PeerSentMessageSchema.parse(rawMessage)
 		}
 		catch (e) {
-			this.loggerService.warn("message", `peer '${sendingSocket.pid}' sent invalid message`, data)
+			this.loggerService.warn("message", `peer '${ws.peerData.pid}' (${ws.peerData.knownAs ?? 'no knownAs'}) sent invalid message`, e)
 			return;
 		}
 
-
-		if (message.kind === "health/pong") return
-		if (message.kind === "health/ping") {
-			this.send(sendingSocket, {kind: "health/pong"});
-			return;
-		}
-
-		if (message.kind === "peers/discover") {
-			const relayPeers: {pid: string, knownAs?: string}[] = []
-			// todo: this forEach might scale badly with lots of connected sockets?
-			// If so, sockets could be stored in a {rid: socket[]} map to avoid looping over all clients.
-			this.#wss.clients.forEach((client) => {
-				if ((client as RelayWebSocket).rid === sendingSocket.rid) {
-					relayPeers.push({
-						pid: sendingSocket.pid,
-						knownAs: sendingSocket.knownAs,
-					})
-				}
-			})
-
-			this.send(sendingSocket, {kind: "peers/list", peers: relayPeers});
-			return
-		}
-
-		if (message.kind === "topics/subscribe" || message.kind === "topics/unsubscribe") {
-			this.loggerService.warn("message", "received topics/* message which is not implemented yet", message)
-			return;
-		}
-
-		if (message.kind === "msg/dm") {
-			// todo: this forEach might scale badly with lots of connected sockets?
-			// If so, sockets could be stored in a {rid: socket[]} map to avoid looping over all clients.
-			for (const [client] of this.#wss.clients.entries()) {
-				if (
-					(client as RelayWebSocket).rid === sendingSocket.rid
-					&& message.to.includes((client as RelayWebSocket).pid)
-				) {
-					this.send((client as RelayWebSocket), {
-						...message,
-						from: sendingSocket.pid,
-					});
-				}
-			}
-			return;
-		}
-
-		// todo: this forEach might scale badly with lots of connected sockets?
-		// If so, sockets could be stored in a {rid: socket[]} map to avoid looping over all clients.
-		for (const [client] of this.#wss.clients.entries()) {
-			if (
-				(client as RelayWebSocket).rid === sendingSocket.rid
-				&& client != sendingSocket
-				&& client.readyState === WebSocket.OPEN
-			) {
-				this.send((client as RelayWebSocket), {
-					...message,
-					from: sendingSocket.pid,
-				});
+		ws.isAlive = true;
+		const replies = await this.relayService.processMessage(ws.peerData.pid, message)
+		for (const reply of replies) {
+			for (const pid of reply.peers) {
+				this.send(pid, reply.message)
 			}
 		}
 	}
 
-	runConnectionCheck() {
+	async runConnectionCheck() {
 		this.loggerService.debug("server", `running connection health check for ${this.#wss.clients.size} total peers`);
 
-		this.#wss.clients.forEach((ws) => {
-			const relaySocket = ws as RelayWebSocket;
-			if (!relaySocket.isAlive) {
-				this.loggerService.info("connection", `disconnecting peer '${relaySocket.pid}' (${relaySocket.knownAs ?? 'no knownAs'}) from relay '${relaySocket.rid}' due to failed connection check`)
-				return relaySocket.terminate();
+		for (const ws of this.#wss.clients as Iterable<RelayPeer>) {
+			if (!ws.isAlive) {
+				this.loggerService.info("connection", `disconnecting peer '${ws.peerData.pid}' (${ws.peerData.knownAs ?? 'no knownAs'}) from relay '${ws.peerData.rid}' due to failed connection check`);
+				await this.relayService.disconnect(ws.peerData.pid);
+				return ws.terminate();
 			}
-			relaySocket.isAlive = false;
-			this.send(relaySocket, {kind: "health/ping"})
-		});
+
+			ws.isAlive = false;
+			this.send(ws, {kind: "health/ping"})
+		}
 	}
 
 	/**
-	 * Type-safe wrapper to send message to connected socket.
+	 * Get the WebSocket client with the requested pid or null if no matching client is found.
 	 *
-	 * @param socket
+	 * @param pid
+	 */
+	getPeerById(pid: string) {
+		for (const ws of this.#wss.clients as Iterable<RelayPeer>) {
+			if (ws.peerData.pid === pid) {
+				return ws;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Type-safe wrapper to send message to the requested socket.
+	 * If passing a string pid and the peer isn't found, an error will be thrown.
+	 *
+	 * @param target
 	 * @param message
 	 */
-	send(socket: RelayWebSocket, message: RelaySentMessageSchema) {
+	send(target: RelayPeer | string, message: RelaySentMessageSchema) {
+		let socket: RelayPeer | null
+		if (typeof target === 'string') {
+			socket = this.getPeerById(target)
+		} else {
+			socket = target;
+		}
+
+		if (!socket) {
+			throw new Error(`[controller] Attempted to send message to peer '${target}' but it was not found.`)
+		}
 		socket.send(JSON.stringify(message));
 	}
 }

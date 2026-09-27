@@ -2,8 +2,9 @@ import { createServer as createHttpServer } from 'http';
 import express from "express";
 
 import {ConfigService} from "./services/config/config.service.js";
-import {RelayServer} from "./modules/relay/relay.controller.js";
-import { LoggerService } from './services/logger/logger.service.js';
+import {LoggerService} from './services/logger/logger.service.js';
+import {RelayController} from "./modules/relay/relay.controller.js";
+import {RelayService} from "./modules/relay/relay.service.js";
 
 export function createServer(
 	configService: ConfigService,
@@ -20,6 +21,7 @@ export function createServer(
 		})
 	})
 
-	new RelayServer(server, configService, loggerService)
+	const relayService = new RelayService(configService, loggerService);
+	new RelayController(server, configService, loggerService, relayService)
 	return server
 }

@@ -1,4 +1,6 @@
 import {describe, test, expect, beforeEach, afterEach} from "vitest";
+import {Server} from "node:http";
+
 import {
 	inspectNextMessage,
 	awaitSocketsOpen,
@@ -7,7 +9,6 @@ import {
 	expectOpenForDuration
 } from "./helpers/helpers.js";
 import {testPeerIds} from "./helpers/data.js";
-
 import {createServer} from "../src/create-server.js";
 import {ConfigOverride, ConfigService} from "../src/services/config/config.service.js";
 import {LoggerService} from "../src/services/logger/logger.service.js";
@@ -24,8 +25,13 @@ const pingMessage = JSON.stringify({kind: "health/ping"})
 const pongMessage = JSON.stringify({kind: "health/pong"})
 
 describe('Connection Checks (ping/pong)', () => {
-	const server = createServer(configService, loggerService);
+	let server: Server
+
 	beforeEach(() => {
+		// todo: new server required for each test or final tests breaks.
+		// 	Likely leak of data between tests due to reuse of stateful RelayService.
+		// 	Perhaps server needs proper setup/teardown lifecycle methods.
+		server = createServer(configService, loggerService);
 		server.listen(42100);
 	});
 	afterEach(() => {
@@ -55,8 +61,9 @@ describe('Connection Checks (ping/pong)', () => {
 		const expectNoSocket2Messages = inspectMessagesForDuration(socket2, CONNECTION_CHECK_TEST_DURATION, (e) => {
 			expect(e.data).not.toEqual(pongMessage)
 		})
-		const expectSocket1Message = inspectNextMessage(
+		const expectSocket1Message = inspectMessagesForDuration(
 			socket1,
+			CONNECTION_CHECK_TEST_DURATION,
 			(event: MessageEvent) => {
 				expect(event.data).toEqual(pongMessage)
 			},
@@ -108,7 +115,7 @@ describe('Connection Checks (ping/pong)', () => {
 		await awaitSocketsOpen([socket1]);
 
 		const interval = setInterval(() => {
-			socket1.send("random")
+			socket1.send(JSON.stringify({kind: "msg/all", data: "test"}))
 		}, CONNECTION_CHECK_INTERVAL/3)
 
 		await expectOpenForDuration(ctx, socket1, CONNECTION_CHECK_TEST_DURATION);

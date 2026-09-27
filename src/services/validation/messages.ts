@@ -1,10 +1,5 @@
 import {z} from "zod";
 
-export const PeerIdSchema = z.uuidv4()
-export type PeerIdSchema = z.infer<typeof PeerIdSchema>
-
-// todo: add relay id schema?
-
 export const PeerSentMessageSchema = z.discriminatedUnion("kind", [
     z.object({kind: z.literal("health/ping")}),
     z.object({kind: z.literal("health/pong")}),
@@ -43,7 +38,7 @@ export const RelaySentMessageSchema = z.discriminatedUnion("kind", [
         kind: z.literal("peers/list"),
         peers: z.array(z.object({
             pid: z.uuidv4(),
-            knownAs: z.string().optional(),
+            knownAs: z.string().nullable(),
         })),
     }),
     z.object({

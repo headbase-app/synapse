@@ -1,10 +1,18 @@
 import {describe, beforeEach, afterEach, test, expect} from "vitest";
-import {expectNoMessagesForDuration, inspectNextMessage, awaitSocketsOpen} from "./helpers/helpers.js";
+import {
+	expectNoMessagesForDuration,
+	awaitSocketsOpen,
+	inspectMessagesForDuration
+} from "./helpers/helpers.js";
 import {testPeerIds} from "./helpers/data.js";
 
 import {createServer} from "../src/create-server.js";
 import {ConfigOverride, ConfigService} from "../src/services/config/config.service.js";
 import {LoggerService} from "../src/services/logger/logger.service.js";
+
+const CONNECTION_CHECK_INTERVAL = 1000
+const CONNECTION_CHECK_TEST_DURATION = CONNECTION_CHECK_INTERVAL*4
+const CONNECTION_CHECK_TEST_TIMEOUT = CONNECTION_CHECK_INTERVAL*6
 
 const MOCK_CONFIG = {relay: {accessSecret: null}} satisfies ConfigOverride
 const configService = new ConfigService(MOCK_CONFIG);
@@ -29,8 +37,9 @@ describe('[msg/dm] Relaying messages to specific peers', () => {
 		const expectNoSocket3Messages = expectNoMessagesForDuration(ctx, relay1socket3, 1000)
 
 		const targetedMessage = {kind: "msg/dm", to: [testPeerIds.two], data: "test"}
-		const expectSocket2Message = inspectNextMessage(
+		const expectSocket2Message = inspectMessagesForDuration(
 			relay1socket2,
+			CONNECTION_CHECK_TEST_DURATION,
 			(event: MessageEvent) => {
 				const jsonEventData = JSON.parse(event.data);
 				expect(jsonEventData).toEqual({
@@ -47,5 +56,5 @@ describe('[msg/dm] Relaying messages to specific peers', () => {
 			expectSocket2Message,
 			expectNoSocket3Messages,
 		]);
-	});
+	}, CONNECTION_CHECK_TEST_TIMEOUT);
 });
