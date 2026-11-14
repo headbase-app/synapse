@@ -71,7 +71,7 @@ The sending peer MUST not be re-sent their own message.
 Broadcast messages MAY include a `topics` property (array of strings) used to categorise messages at the sending peers discretion.
 
 #### Topics
-At any point a peer MAY choose to send a `topics/subscribe` message to request the relay only sends `msg/all` messages with a specific `topics` or group of `topics`:
+At any point a peer MAY choose to send a `topics/subscribe` message to request the relay only sends `msg/all` messages containing a specific topic or group of topics:
 
 ```json
 {
@@ -84,18 +84,18 @@ At any point a peer MAY choose to send a `topics/subscribe` message to request t
 }
 ```
 
-On receiving this filter request, the relay MUST store the peers topic filters and apply these until the peer sends another `topics/subscribe` message or an `topics/unsubscribe` message.  
-The server MUST not relay `topics/subscribe`/`topics/unsubscribe` messages between peers, these are unique to each connection.
+On receiving this subscribe request, the relay MUST store the peers requested topics and use these until the peer sends another `topics/subscribe` message or a `topics/unsubscribe` message.  
+The server MUST not relay `topics/subscribe` or `topics/unsubscribe` messages between peers, these are unique to each connection.
 
-When broadcasting within a relay, the server MUST check for any peer topic filters and if present MUST only send to the peer if a filter condition is met.
+When broadcasting within a relay, the server MUST check for any topic subscriptions for each peer and if present MUST only send to the peer if a topic is matched.
 
-Topic filters MUST be interpreted as follows:
+Topics MUST be interpreted as follows:
 - Given a string, a message `topics` array MUST contain that value.
-- Given an array of strings, a message `topics` array MUST contain ALL values.
-- Only one condition needs to be met for a peer to receive the message.
-- Given a message with no `topics` array, this MUST not be sent to peers with active topic filters.
+- Given an array of strings, a message `topics` array MUST contain ALL given values.
+- Only one topic needs to be met for a peer to receive the message.
+- Given a message with no `topics` array, this MUST NOT be sent to peers with active topic subscriptions.
 
-Given the example filter message above for example, the logical representation of the conditions would be as follows:
+Given the example message above for example, the logical representation of the conditions would be as follows:
 ```
 topic1 OR (topic2 AND topic 3) OR topic4
 ```

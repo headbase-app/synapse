@@ -14,14 +14,17 @@ export const PeerData = z.object({
 })
 export type PeerData = z.infer<typeof PeerData>
 
+export interface PeerConnectionData extends PeerData {
+	topics: (string | string[])[]
+}
+
 export interface MessageReply {
 	peers: string[]
 	message: RelaySentMessageSchema
 }
 
-export type RelayLookup = Map<string, PeerData[]>
-export type PeerLookup = Map<string, PeerData>
-
+export type RelayLookup = Map<string, string[]>
+export type PeerLookup = Map<string, PeerConnectionData>
 
 export class RelayService {
 	#relayLookup: RelayLookup;
@@ -46,8 +49,11 @@ export class RelayService {
 		}
 
 		const relay = this.#relayLookup.get(peer.rid) ?? []
-		this.#relayLookup.set(peer.rid, [...relay, peer]);
-		this.#peerLookup.set(peer.pid, peer)
+		this.#relayLookup.set(peer.rid, [...relay, peer.pid]);
+		this.#peerLookup.set(peer.pid, {
+			...peer,
+			topics: []
+		})
 
 		return [this.#createPeerListReply(peer.rid)]
 	}
@@ -70,9 +76,13 @@ export class RelayService {
 		if (message.kind === "peers/discover") {
 			return [this.#createPeerListReply(peer.rid, [from])]
 		}
-		if (message.kind === "topics/subscribe" || message.kind === "topics/unsubscribe") {
-			this.loggerService.warn("message", "received topic subscription message which is not implemented yet", message)
-			return [];
+		if (message.kind === "topics/subscribe") {
+			await this.topicSubscribe(peer.pid, message.topics)
+			return []
+		}
+		if (message.kind === "topics/unsubscribe") {
+			await this.topicUnsubscribe(peer.pid)
+			return []
 		}
 		if (message.kind === "msg/dm") {
 			return [{
@@ -84,10 +94,35 @@ export class RelayService {
 			}]
 		}
 
-		const peers = this.#relayLookup.get(peer.rid) ?? [];
-		const targetPeers = peers
-				.filter(peer => peer.pid !== from)
-				.map(peer => peer.pid)
+		// Normal message relaying, including handling peer topic subscriptions.
+		const pids = this.#relayLookup.get(peer.rid) ?? [];
+		const targetPeers = pids
+			.filter(pid => {
+				if (pid === from) return false;
+
+				const peer = this.#peerLookup.get(pid)!
+				if (peer.topics.length === 0 || message.topics?.length === 0) {
+					return true;
+				}
+
+				for (const topic of peer.topics) {
+					if (typeof topic === "string") {
+						if (message.topics?.includes(topic)) {
+							return true;
+						}
+					}
+					else if (new Set(topic).isSubsetOf(new Set(message.topics))) {
+						return true;
+                    }
+
+				}
+
+				return false;
+			})
+
+		if (targetPeers.length === 0) {
+			return []
+		}
 
 		return [{
 			peers: targetPeers,
@@ -98,8 +133,44 @@ export class RelayService {
 		}]
 	}
 
+	async disconnect(pid: string) {
+		const peer = this.#peerLookup.get(pid);
+		if (!peer) {
+			throw new Error("[messages] The requested peer to disconnect was not found.")
+		}
+
+		this.#peerLookup.delete(pid);
+		const relayPids = this.#relayLookup.get(peer.rid) ?? [];
+		this.#relayLookup.set(peer.rid, relayPids.filter(relayPid => relayPid !== pid));
+	}
+
+	async topicSubscribe(pid: string, subscriptions: PeerConnectionData['topics']) {
+		const peer = this.#peerLookup.get(pid);
+		if (!peer) {
+			throw new Error("[messages] The requested peer for topic unsubscribe was not found.")
+		}
+
+		this.#peerLookup.set(pid, {
+			...peer,
+			topics: subscriptions,
+		});
+	}
+
+	async topicUnsubscribe(pid: string) {
+		const peer = this.#peerLookup.get(pid);
+		if (!peer) {
+			throw new Error("[messages] The requested peer for topic unsubscribe was not found.")
+		}
+
+		this.#peerLookup.set(pid, {
+			...peer,
+			topics: []
+		});
+	}
+
 	#createPeerListReply(rid: string, replyPeers?: string[]): MessageReply {
-		const peers = this.#relayLookup.get(rid) ?? [];
+		const pids = this.#relayLookup.get(rid) ?? [];
+		const peers = pids.map(pid => this.#peerLookup.get(pid)!);
 
 		return {
 			peers: replyPeers ?? peers.map(peer => peer.pid),
@@ -108,16 +179,5 @@ export class RelayService {
 				peers: peers.map(peer => ({pid: peer.pid, knownAs: peer.knownAs }))
 			}
 		}
-	}
-
-	async disconnect(pid: string) {
-		const peer = this.#peerLookup.get(pid);
-		if (!peer) {
-			throw new Error("[messages] The requested peer to disconnect was not found.")
-		}
-
-		this.#peerLookup.delete(pid);
-		const relays = this.#relayLookup.get(peer.rid) ?? [];
-		this.#relayLookup.set(peer.rid, relays.filter(relay => relay.pid !== pid));
 	}
 }

@@ -31,6 +31,7 @@ describe("RelayService - msg/all messages", async () => {
     test("Should not relay to sending peer", async () => {
         const relayService = new RelayService(configService, loggerService);
         await relayService.connect({rid: "relay-1", pid: testPeerIds.one, knownAs: "peer-1"})
+        await relayService.connect({rid: "relay-1", pid: testPeerIds.two, knownAs: "peer-1"})
 
         const replies = await relayService.processMessage(testPeerIds.one, {kind: "msg/all", data: "test"})
         expect(replies.at(0)?.peers).not.toContain(testPeerIds.one)
@@ -39,6 +40,7 @@ describe("RelayService - msg/all messages", async () => {
     test("Should add 'from' property to message", async () => {
         const relayService = new RelayService(configService, loggerService);
         await relayService.connect({rid: "relay-1", pid: testPeerIds.one, knownAs: "peer-1"})
+        await relayService.connect({rid: "relay-1", pid: testPeerIds.two, knownAs: "peer-1"})
 
         const replies = await relayService.processMessage(testPeerIds.one, {kind: "msg/all", data: "test"})
         expect(replies.at(0)?.message).toEqual(expect.objectContaining({
@@ -53,10 +55,6 @@ describe("RelayService - msg/all messages", async () => {
         await relayService.connect({rid: "relay-2", pid: testPeerIds.three, knownAs: "peer-3"})
 
         const replies = await relayService.processMessage(testPeerIds.three, {kind: "msg/all", data: "test"})
-        expect(replies).toEqual([
-            expect.objectContaining({
-                peers: [],
-            })
-        ])
+        expect(replies).toEqual([])
     })
 })
